@@ -1,0 +1,4 @@
+name-template: excel-rs $RESOLVED_VERSION
+tag-template: rs-$RESOLVED_VERSION
+tag-prefix: rs-
+template: Version $RESOLVED_VERSION of excel-rs is now available!

@@ -1,32 +1,32 @@
-use std::io::{Result, Seek, Write};
+use crate::error::Result;
+use std::io::{Seek, Write};
 
 use zip::{write::SimpleFileOptions, ZipWriter};
 
-pub struct XlsxFormatter<W: Write + Seek> {
+pub(crate) struct XlsxFormatter<W: Write + Seek> {
     pub zip_writer: ZipWriter<W>,
 }
 
+fn xml_escape_attr(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 impl<W: Write + Seek> XlsxFormatter<W> {
-    pub fn new(zip_writer: ZipWriter<W>) -> Self {
+    pub(crate) fn new(zip_writer: ZipWriter<W>) -> Self {
         XlsxFormatter { zip_writer }
     }
 
-    // pub fn write_sheet(&mut self, sheet: Sheet) -> Result<()> {
-    //     let sheet_id = sheet.id;
-    //     let sheet_buf = sheet.close().ok().unwrap();
-
-    //     let options = SimpleFileOptions::default()
-    //         .compression_method(zip::CompressionMethod::Deflated)
-    //         .compression_level(Some(1));
-    //     self.zip_writer
-    //         .start_file(format!("xl/worksheets/sheet{}.xml", sheet_id), options)?;
-
-    //     self.zip_writer.write_all(&sheet_buf)?;
-
-    //     Ok(())
-    // }
-
-    pub fn finish(mut self, num_of_sheets: u16) -> Result<W> {
+    pub(crate) fn finish(mut self, sheet_names: Vec<String>) -> Result<W> {
+        let num_of_sheets = sheet_names.len() as u16;
         let options = SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated)
             .compression_level(Some(1));
@@ -35,7 +35,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         self.write_doc_props(&options)?;
         self.write_styles(&options)?;
         self.write_shared_strings(&options)?;
-        self.write_work_book(&options, num_of_sheets)?;
+        self.write_work_book(&options, &sheet_names)?;
         self.write_calc_chain(&options)?;
         self.write_xl_rels(&options, num_of_sheets)?;
         self.write_theme(&options)?;
@@ -47,7 +47,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         &mut self,
         options: &SimpleFileOptions,
         num_of_sheets: u16,
-    ) -> Result<()> {
+    ) -> std::io::Result<()> {
         self.zip_writer
             .start_file("[Content_Types].xml", *options)?;
         write!(
@@ -63,7 +63,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         )
     }
 
-    fn write_rels(&mut self, options: &SimpleFileOptions) -> Result<()> {
+    fn write_rels(&mut self, options: &SimpleFileOptions) -> std::io::Result<()> {
         self.zip_writer.start_file("_rels/.rels", *options)?;
         write!(
             self.zip_writer,
@@ -71,7 +71,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         )
     }
 
-    fn write_doc_props(&mut self, options: &SimpleFileOptions) -> Result<()> {
+    fn write_doc_props(&mut self, options: &SimpleFileOptions) -> std::io::Result<()> {
         self.zip_writer.start_file("docProps/app.xml", *options)?;
         write!(
             self.zip_writer,
@@ -106,7 +106,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         )
     }
 
-    fn write_styles(&mut self, options: &SimpleFileOptions) -> Result<()> {
+    fn write_styles(&mut self, options: &SimpleFileOptions) -> std::io::Result<()> {
         self.zip_writer.start_file("xl/styles.xml", *options)?;
         write!(
             self.zip_writer,
@@ -155,7 +155,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         )
     }
 
-    fn write_shared_strings(&mut self, options: &SimpleFileOptions) -> Result<()> {
+    fn write_shared_strings(&mut self, options: &SimpleFileOptions) -> std::io::Result<()> {
         self.zip_writer
             .start_file("xl/sharedStrings.xml", *options)?;
         write!(
@@ -165,7 +165,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         )
     }
 
-    fn write_work_book(&mut self, options: &SimpleFileOptions, num_of_sheets: u16) -> Result<()> {
+    fn write_work_book(&mut self, options: &SimpleFileOptions, sheet_names: &[String]) -> std::io::Result<()> {
         self.zip_writer.start_file("xl/workbook.xml", *options)?;
         write!(
             self.zip_writer,
@@ -175,13 +175,15 @@ impl<W: Write + Seek> XlsxFormatter<W> {
             <sheets>
     "#
         )?;
-        for i in 0..num_of_sheets {
+        for (i, name) in sheet_names.iter().enumerate() {
+            let sheet_id = i + 1;
+            let escaped = xml_escape_attr(name);
             writeln!(
                 self.zip_writer,
-                "<sheet name=\"Sheet {}\" sheetId=\"{}\" r:id=\"rId{}\"/>",
-                i + 1,
-                i + 1,
-                i + 3
+                "<sheet name=\"{}\" sheetId=\"{}\" r:id=\"rId{}\"/>",
+                escaped,
+                sheet_id,
+                sheet_id + 2
             )?;
         }
         write!(
@@ -193,7 +195,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         )
     }
 
-    fn write_calc_chain(&mut self, options: &SimpleFileOptions) -> Result<()> {
+    fn write_calc_chain(&mut self, options: &SimpleFileOptions) -> std::io::Result<()> {
         self.zip_writer.start_file("xl/calcChain.xml", *options)?;
         write!(
             self.zip_writer,
@@ -202,7 +204,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         )
     }
 
-    fn write_xl_rels(&mut self, options: &SimpleFileOptions, num_of_sheets: u16) -> Result<()> {
+    fn write_xl_rels(&mut self, options: &SimpleFileOptions, num_of_sheets: u16) -> std::io::Result<()> {
         self.zip_writer
             .start_file("xl/_rels/workbook.xml.rels", *options)?;
         write!(
@@ -230,7 +232,7 @@ impl<W: Write + Seek> XlsxFormatter<W> {
         )
     }
 
-    fn write_theme(&mut self, options: &SimpleFileOptions) -> Result<()> {
+    fn write_theme(&mut self, options: &SimpleFileOptions) -> std::io::Result<()> {
         self.zip_writer
             .start_file("xl/theme/theme1.xml", *options)?;
         write!(

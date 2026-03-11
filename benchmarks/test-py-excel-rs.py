@@ -1,7 +1,13 @@
-import py_excel_rs
+from py_excel_rs import WorkBook
 
-f = open('organizations-1000000.csv', 'rb')
-xlsx = py_excel_rs.csv_to_xlsx(f.read())
+wb = WorkBook()
 
-with open('report.xlsx', 'wb') as f:
-    f.write(xlsx)
+f = open("organizations-1000000.csv", "rb")
+
+wb.write_csv_to_sheet(
+    "Organizations",
+    f.read(),
+)
+
+with open("report.xlsx", "wb") as f:
+    wb.finish(f)

@@ -9,12 +9,11 @@ readme = "../README.md"
 description = "python ffi for excel-rs"
 
 [dependencies]
-excel-rs-xlsx = { workspace = true }
-excel-rs-csv = { workspace = true }
-excel-rs-postgres = { workspace = true }
+excel-rs = { workspace = true }
 pyo3 = { version = "0.24", features = ["chrono", "extension-module", "py-clone"] }
 numpy = "0.24"
 chrono = "0.4.38"
+csv = "1"
 
 [lib]
 name = "excel_rs"
