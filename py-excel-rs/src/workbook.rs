@@ -4,10 +4,7 @@ use csv::ByteRecord;
 use excel_rs::{sheet::CellType, WorkBook};
 use numpy::{ndarray::ArrayView1, PyArray2, PyArrayMethods};
 use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError},
-    pyclass, pymethods,
-    types::{PyAnyMethods, PyBool, PyBytes, PyBytesMethods, PyFloat, PyInt, PyStringMethods},
-    Bound, PyAny, PyObject, PyResult, Python,
+    Bound, Py, PyAny, PyResult, Python, exceptions::{PyRuntimeError, PyTypeError}, pyclass, pymethods, types::{PyAnyMethods, PyBool, PyBytes, PyBytesMethods, PyFloat, PyInt, PyStringMethods}
 };
 
 use crate::{celltype::PyCellType, error::to_py_err};
@@ -190,17 +187,17 @@ impl PyWorkBook {
                 Some(vec![CellType::Boolean; num_of_cols]),
             ),
             "U" | "S" => {
-                self.write_typed_array::<PyObject>(sheet_name, &array, resolved_headers, None)
+                self.write_typed_array::<Py<PyAny>>(sheet_name, &array, resolved_headers, None)
             }
             "O" => {
                 let type_hints = if should_infer_types {
-                    Some(Python::with_gil(|py| {
+                    Some(Python::attach(|py| {
                         infer_types_from_object_array(py, &array)
                     })?)
                 } else {
                     None
                 };
-                self.write_typed_array::<PyObject>(sheet_name, &array, resolved_headers, type_hints)
+                self.write_typed_array::<Py<PyAny>>(sheet_name, &array, resolved_headers, type_hints)
             }
             _ => Err(PyTypeError::new_err(format!(
                 "unsupported dtype kind: {}",
@@ -259,7 +256,7 @@ impl PyWorkBook {
             .as_mut()
             .ok_or_else(|| PyRuntimeError::new_err("workbook already closed"))?;
 
-        let downcasted_arr = array.downcast::<PyArray2<T>>()?.readonly();
+        let downcasted_arr = array.cast::<PyArray2<T>>()?.readonly();
         let ndarray = downcasted_arr.as_array();
 
         let mut sheet = wb.new_worksheet(sheet_name).map_err(to_py_err)?;
@@ -286,19 +283,19 @@ impl PyWorkBook {
 }
 
 fn infer_types_from_object_array(py: Python, array: &Bound<'_, PyAny>) -> PyResult<Vec<CellType>> {
-    let arr = array.downcast::<PyArray2<PyObject>>()?.readonly();
+    let arr = array.cast::<PyArray2<Py<PyAny>>>()?.readonly();
     let casted_arr = arr.as_array();
     Ok(infer_types_from_first_row(py, casted_arr.row(0)))
 }
 
-fn infer_types_from_first_row(py: Python<'_>, row: ArrayView1<PyObject>) -> Vec<CellType> {
+fn infer_types_from_first_row(py: Python<'_>, row: ArrayView1<Py<PyAny>>) -> Vec<CellType> {
     let datetime_type = py
         .import("datetime")
         .and_then(|m| m.getattr("datetime"))
         .ok();
 
     row.iter()
-        .map(|obj| infer_cell_type(py, obj.bind(py), datetime_type.as_ref()))
+        .map(|obj: &Py<PyAny>| infer_cell_type(py, obj.bind(py), datetime_type.as_ref()))
         .collect()
 }
 

@@ -17,7 +17,7 @@ use pyo3::pyclass;
 ///     wb.write_csv_to_sheet("Sales", csv_bytes, [CellType.Number, CellType.String, CellType.Date])
 ///     with open("out.xlsx", "wb") as f:
 ///         wb.finish(f)
-#[pyclass(eq, eq_int)]
+#[pyclass(eq, eq_int, from_py_object)]
 #[derive(PartialEq, Clone)]
 pub enum PyCellType {
     /// Plain text. Use this when unsure.
