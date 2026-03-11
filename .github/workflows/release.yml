@@ -2,11 +2,6 @@ name: Python Release
 
 on:
   push:
-    branches:
-      - main
-      - master
-    paths:
-      - py-excel-rs/**
     tags:
       - 'py-v*'
   pull_request:

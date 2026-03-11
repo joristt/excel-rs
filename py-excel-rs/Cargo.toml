@@ -10,9 +10,8 @@ description = "python ffi for excel-rs"
 
 [dependencies]
 excel-rs = { workspace = true }
-pyo3 = { version = "0.24", features = ["chrono", "extension-module", "py-clone"] }
-numpy = "0.24"
-chrono = "0.4.38"
+pyo3 = { version = "0.28", features = ["extension-module", "py-clone"] }
+numpy = "0.28"
 csv = "1"
 
 [lib]
