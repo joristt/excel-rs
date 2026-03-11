@@ -2,13 +2,8 @@ name: CLI Release
 
 on:
   push:
-    branches:
-      - main
-      - master
-    paths:
-      - cli-excel-rs/**
     tags:
-      - 'cli-v*'
+      - 'cli-v[0-9]+.[0-9]+.[0-9]+'
   pull_request:
   workflow_dispatch:
 

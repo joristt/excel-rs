@@ -3,7 +3,9 @@ name: Rust Crate Release
 on:
   push:
     tags:
-      - 'rs-v*'
+      - 'rs-v[0-9]+.[0-9]+.[0-9]+'
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read

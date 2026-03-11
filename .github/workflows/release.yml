@@ -3,7 +3,7 @@ name: Python Release
 on:
   push:
     tags:
-      - 'py-v*'
+      - 'py-v[0-9]+.[0-9]+.[0-9]+'
   pull_request:
   workflow_dispatch:
 
