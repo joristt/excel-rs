@@ -68,7 +68,7 @@ Full API documentation is available on [docs.rs/excel-rs](https://docs.rs/excel-
 ### Installing
 ```toml
 [dependencies]
-excel-rs = "1.0.0"
+excel-rs = "1"
 ```
 
 ## Benchmarks
