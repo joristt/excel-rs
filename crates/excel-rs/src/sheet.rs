@@ -58,72 +58,6 @@ impl CellType {
     }
 }
 
-// max col count of 16384 means that the largest column is XFD, which fits in 3 bytes
-static COL_LOOKUP: [[u8; 3]; crate::MAX_COLS] = build_col_lookup();
-
-const fn build_col_lookup() -> [[u8; 3]; crate::MAX_COLS] {
-    let mut table = [[0u8; 3]; crate::MAX_COLS];
-    let mut col = 0usize;
-
-    while col < crate::MAX_COLS {
-        let mut col_buf = [0u8; 3];
-        let mut col_len = 0usize;
-        let mut c = col as i32;
-
-        // constructs the column ref backwards. so XFD would be [D, F, X]
-        loop {
-            col_buf[col_len] = b'A' + (c % 26) as u8;
-            col_len += 1;
-            c = c / 26 - 1;
-            if c < 0 {
-                break;
-            }
-        }
-
-        col_buf.reverse();
-        table[col] = col_buf;
-        col += 1;
-    }
-
-    table
-}
-
-// function is quite small so i figured best to inline it. i'm not sure if this makes much of a difference
-#[inline(always)]
-fn get_col_letters(col: usize) -> &'static [u8] {
-    let entry = &COL_LOOKUP[col];
-    let start = entry.iter().position(|&b| b != 0).unwrap_or(2);
-    &entry[start..]
-}
-
-fn get_ref_id(col: usize, row: &[u8], row_len: usize) -> ([u8; 10], usize) {
-    let mut final_arr = [0u8; 10];
-    let col_letter = get_col_letters(col);
-    let col_len = col_letter.len();
-
-    final_arr[..col_len].copy_from_slice(col_letter);
-    final_arr[col_len..col_len + row_len].copy_from_slice(row);
-
-    (final_arr, col_len + row_len)
-}
-
-// rows are fit into 7 bytes because the max number of rows in excel is only in the millions
-fn num_to_bytes(n: u32) -> ([u8; 7], usize) {
-    // convert from number to string manually
-    let mut buffer = [0; 7];
-    let mut pos = 7;
-    let mut row = n;
-    loop {
-        pos -= 1;
-        buffer[pos] = b'0' + (row % 10) as u8;
-        row /= 10;
-        if row == 0 {
-            break;
-        }
-    }
-    (buffer, pos)
-}
-
 fn write_escaped(out: &mut Vec<u8>, bytes: &[u8]) {
     // just learnt of SIMD instructions and this resulted in ~5% perf boost
     // i'm assuming that cells needing escapes are relatively rarer than cells containing normal text
@@ -186,23 +120,14 @@ impl<'a, W: Write + Seek> Sheet<'a, W> {
             return Err(ExcelError::RowLimitExceeded);
         }
 
-        let (row, pos) = num_to_bytes(self.current_row_num);
+        self.global_shared_vec.extend_from_slice(b"<row>");
 
-        self.global_shared_vec.extend_from_slice(b"<row r=\"");
-        self.global_shared_vec.extend_from_slice(&row[pos..]);
-        self.global_shared_vec.extend_from_slice(b"\">");
-
-        let row_len = 7 - pos;
         for (col, cell) in cells.enumerate() {
             if col >= crate::MAX_COLS {
                 return Err(ExcelError::ColumnLimitExceeded);
             }
 
-            let (ref_id, ref_len) = get_ref_id(col, &row[pos..], row_len);
-
-            self.global_shared_vec.extend_from_slice(b"<c r=\"");
-            self.global_shared_vec.extend_from_slice(&ref_id[..ref_len]);
-            self.global_shared_vec.extend_from_slice(b"\" t=\"");
+            self.global_shared_vec.extend_from_slice(b"<c t=\"");
             self.global_shared_vec.extend_from_slice(type_hints.map_or(
                 CellType::String.as_static_bytes(),
                 |x| {
